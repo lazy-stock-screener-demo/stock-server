@@ -1,0 +1,69 @@
+image: docker:19.03.12
+services:
+  - docker:19.03.12-dind
+
+stages:
+  - build
+  - test
+  - release
+  # - deploy
+
+variables:
+  # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+  # DOCKER_HOST: tcp://docker:2376
+  # DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_FILE: "Dockerfile"
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+  CONTAINER_SHA_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+
+before_script:
+  - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+
+Build:
+  stage: build
+  script:
+    - docker pull $CONTAINER_RELEASE_IMAGE || true
+    - >
+      docker build
+      -t $CONTAINER_SHA_IMAGE
+      -f $DOCKER_FILE
+      .
+    - docker push $CONTAINER_SHA_IMAGE
+
+# Tag master branch as latest
+Release latest:
+  variables:
+    GIT_STRATEGY: none
+  stage: release
+  only:
+    - master
+  script:
+    - docker pull $CONTAINER_SHA_IMAGE
+    - docker tag $CONTAINER_SHA_IMAGE $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+
+Push tag:
+  variables:
+    # Again, we do not need the source code here. Just playing with Docker.
+    GIT_STRATEGY: none
+  stage: release
+  only:
+    # We want this job to be run on tags only.
+    - tags
+  script:
+    - docker pull $CONTAINER_SHA_IMAGE
+    - docker tag $CONTAINER_SHA_IMAGE $CONTAINER_TEST_IMAGE
+    - docker push $CONTAINER_TEST_IMAGE
+# test1:
+#   stage: test
+#   script:
+#     - docker pull $CONTAINER_TEST_IMAGE
+#     - docker run $CONTAINER_TEST_IMAGE /script/to/run/tests
+
+# deploy:
+#   stage: deploy
+#   script:
+#     - ./deploy.sh
+#   only:
+#     - master

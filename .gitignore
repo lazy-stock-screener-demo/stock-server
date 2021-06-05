@@ -1,0 +1,9 @@
+build/
+.vscode
+.DS_Store
+.env
+package-lock.json
+dump.rdb
+.rsa
+.rsa.pub
+cprof
